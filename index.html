@@ -1,658 +1,237 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ito (イト) - オンライン2人プレイ</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;900&display=swap" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'M PLUS Rounded 1c', sans-serif;
-        }
-        .card-flip {
-            perspective: 1000px;
-        }
-        .card-inner {
-            transition: transform 0.6s;
-            transform-style: preserve-3d;
-        }
-        .card-flipped .card-inner {
-            transform: rotateY(180deg);
-        }
-        .card-front, .card-back {
-            backface-visibility: hidden;
-        }
-        .card-back {
-            transform: rotateY(180deg);
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>オンライン ito (2人用・2枚ルール)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col justify-between selection:bg-indigo-500 selection:text-white">
+<body class="bg-slate-900 text-white min-h-screen flex flex-col justify-center items-center p-4">
 
-    <!-- Header -->
-    <header class="bg-slate-800/80 backdrop-blur border-b border-slate-700/50 p-4 sticky top-0 z-50">
-        <div class="max-w-3xl mx-auto flex justify-between items-center">
-            <div class="flex items-center gap-2">
-                <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-pink-500 to-indigo-500 flex items-center justify-center font-black text-xl shadow-lg">i</div>
-                <h1 class="text-2xl font-black tracking-wider bg-clip-text text-transparent bg-gradient-to-r from-pink-400 via-purple-300 to-indigo-400">ito Online</h1>
-            </div>
-            <div id="userInfo" class="text-xs sm:text-sm text-slate-400 font-bold bg-slate-950 px-3 py-1.5 rounded-full border border-slate-800">
-                未接続
-            </div>
-        </div>
-    </header>
+  <div class="max-w-md w-full bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700">
+    <h1 class="text-3xl font-extrabold text-center mb-6 text-amber-400">ito オンライン (2人用)</h1>
 
-    <!-- Main Container -->
-    <main class="max-w-3xl mx-auto w-full p-4 flex-grow flex flex-col justify-center">
+    <!-- 接続画面 -->
+    <div id="setup-screen" class="space-y-4">
+      <button id="btn-create" class="w-full py-3 bg-amber-500 hover:bg-amber-600 font-bold rounded-xl text-slate-900 transition">
+        部屋を作成する（ホスト）
+      </button>
+      
+      <div class="relative flex py-2 items-center">
+        <div class="flex-grow border-t border-slate-600"></div>
+        <span class="flex-shrink mx-4 text-slate-400 text-sm">または</span>
+        <div class="flex-grow border-t border-slate-600"></div>
+      </div>
 
-        <!-- LOBBY SCREEN -->
-        <section id="lobbyScreen" class="space-y-6">
-            <div class="text-center space-y-2">
-                <h2 class="text-3xl font-black text-slate-100">みんなで数字を言葉で例えよう！</h2>
-                <p class="text-sm text-slate-400">1〜100の自分の数字をテーマに沿った言葉で表現し、小さい順に出せるかチャレンジ！</p>
-            </div>
+      <div class="flex gap-2">
+        <input type="text" id="join-id" placeholder="相手のIDを入力" class="flex-1 px-4 py-3 bg-slate-700 rounded-xl border border-slate-600 text-white focus:outline-none focus:border-amber-400">
+        <button id="btn-join" class="px-6 py-3 bg-blue-600 hover:bg-blue-700 font-bold rounded-xl transition">
+          参加
+        </button>
+      </div>
 
-            <div class="bg-slate-800 border border-slate-700/60 rounded-3xl p-6 shadow-xl space-y-6">
-                <!-- Create Room -->
-                <div class="space-y-3">
-                    <h3 class="text-lg font-bold text-slate-200 flex items-center gap-2">
-                        <i class="fa-solid fa-plus-circle text-pink-400"></i> 新しい部屋を作る
-                    </h3>
-                    <button id="createRoomBtn" class="w-full py-4 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white font-black text-lg rounded-2xl shadow-lg shadow-pink-500/25 active:scale-98 transition">
-                        部屋を作成する
-                    </button>
-                </div>
-
-                <div class="relative flex py-1 items-center">
-                    <div class="flex-grow border-t border-slate-700"></div>
-                    <span class="flex-shrink mx-4 text-slate-500 text-xs font-bold uppercase">または</span>
-                    <div class="flex-grow border-t border-slate-700"></div>
-                </div>
-
-                <!-- Join Room -->
-                <div class="space-y-3">
-                    <h3 class="text-lg font-bold text-slate-200 flex items-center gap-2">
-                        <i class="fa-solid fa-right-to-bracket text-indigo-400"></i> 部屋に入る
-                    </h3>
-                    <div class="flex gap-2">
-                        <input type="text" id="roomCodeInput" maxlength="5" placeholder="5桁の部屋コード" class="w-full bg-slate-950 border border-slate-700 rounded-2xl px-4 py-3 text-center text-xl font-bold tracking-widest text-white focus:outline-none focus:border-indigo-500 uppercase">
-                        <button id="joinRoomBtn" class="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-2xl shadow-lg shadow-indigo-600/25 active:scale-95 transition whitespace-nowrap">
-                            参加
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- GAME SCREEN -->
-        <section id="gameScreen" class="hidden space-y-5">
-            <!-- Room Info & Theme Bar -->
-            <div class="bg-slate-800/90 border border-slate-700/80 rounded-2xl p-4 shadow-lg space-y-3">
-                <div class="flex justify-between items-center text-xs text-slate-400 font-bold border-b border-slate-700/50 pb-2">
-                    <div class="flex items-center gap-2">
-                        <span>ROOM:</span>
-                        <span id="displayRoomCode" class="text-pink-400 text-base font-black tracking-wider">-----</span>
-                        <button id="copyCodeBtn" class="bg-slate-700 hover:bg-slate-600 text-slate-200 px-2 py-0.5 rounded text-xs active:scale-90 transition">
-                            <i class="fa-regular fa-copy"></i>
-                        </button>
-                    </div>
-                    <div id="playerStatus" class="flex gap-3">
-                        <span id="p1Status" class="flex items-center gap-1"><i class="fa-solid fa-circle text-xs text-slate-600"></i> P1</span>
-                        <span id="p2Status" class="flex items-center gap-1"><i class="fa-solid fa-circle text-xs text-slate-600"></i> P2</span>
-                    </div>
-                </div>
-
-                <!-- Current Theme -->
-                <div class="text-center py-2 space-y-1">
-                    <div class="text-xs font-bold text-indigo-300 uppercase tracking-widest">現在のテーマ</div>
-                    <div id="currentTheme" class="text-xl sm:text-2xl font-black text-yellow-300 drop-shadow">
-                        テーマを選択してください
-                    </div>
-                </div>
-
-                <!-- Host Controls -->
-                <div id="hostControls" class="flex flex-wrap gap-2 justify-center pt-2 border-t border-slate-700/50">
-                    <button id="randomThemeBtn" class="px-3 py-1.5 bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 border border-purple-500/30 text-xs font-bold rounded-xl transition flex items-center gap-1">
-                        <i class="fa-solid fa-dice"></i> テーマ変更
-                    </button>
-                    <button id="dealCardsBtn" class="px-4 py-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white text-xs font-black rounded-xl shadow-lg shadow-emerald-500/25 active:scale-95 transition flex items-center gap-1">
-                        <i class="fa-solid fa-play"></i> ゲーム開始 (カード配布)
-                    </button>
-                </div>
-            </div>
-
-            <!-- SHARED BOARD -->
-            <div class="bg-slate-950/60 border border-slate-800 rounded-3xl p-5 min-h-[160px] flex flex-col justify-center items-center relative overflow-hidden">
-                <div class="absolute top-3 left-4 text-xs font-bold text-slate-500 flex items-center gap-1">
-                    <i class="fa-solid fa-layer-group"></i> 出されたカード (合計4枚・小さい順に出そう!)
-                </div>
-
-                <!-- Card Stack Area -->
-                <div id="playedCardsArea" class="flex flex-wrap justify-center items-center gap-3 mt-6 w-full min-h-[90px]">
-                    <div class="text-slate-600 text-sm font-bold animate-pulse">カードが出されるのを待っています...</div>
-                </div>
-
-                <!-- Result Message Banner -->
-                <div id="resultBanner" class="hidden mt-4 w-full text-center py-3 rounded-2xl font-black text-lg shadow-lg"></div>
-            </div>
-
-            <!-- MY CARD AREA -->
-            <div class="bg-slate-800/60 border border-slate-700/50 rounded-3xl p-5 text-center space-y-4 shadow-xl">
-                <div class="text-xs font-bold text-slate-400">あなたの手札（2枚） - 相手には数字が見えません</div>
-                
-                <div id="myHandArea" class="flex justify-center gap-4">
-                    <!-- My Card 1 -->
-                    <div id="cardBtn1" class="w-28 h-40 bg-gradient-to-br from-indigo-600 to-purple-700 border-4 border-indigo-400/50 rounded-2xl shadow-xl flex flex-col justify-between p-2.5 relative cursor-pointer transform transition-all duration-200 hover:scale-105 active:scale-95">
-                        <div class="text-left text-[10px] font-black text-indigo-200">CARD 1</div>
-                        <div id="myCardNum1" class="text-4xl font-black text-white text-center drop-shadow-md">?</div>
-                        <div class="text-right text-[10px] font-black text-indigo-200">ito</div>
-                    </div>
-                    <!-- My Card 2 -->
-                    <div id="cardBtn2" class="w-28 h-40 bg-gradient-to-br from-indigo-600 to-purple-700 border-4 border-indigo-400/50 rounded-2xl shadow-xl flex flex-col justify-between p-2.5 relative cursor-pointer transform transition-all duration-200 hover:scale-105 active:scale-95">
-                        <div class="text-left text-[10px] font-black text-indigo-200">CARD 2</div>
-                        <div id="myCardNum2" class="text-4xl font-black text-white text-center drop-shadow-md">?</div>
-                        <div class="text-right text-[10px] font-black text-indigo-200">ito</div>
-                    </div>
-                </div>
-
-                <p class="text-xs text-slate-400 font-bold">カードをタップして場に出します</p>
-            </div>
-        </section>
-
-    </main>
-
-    <!-- Notification Toast -->
-    <div id="toast" class="fixed bottom-5 left-1/2 -translate-x-1/2 bg-slate-800 border border-slate-700 text-white text-xs font-bold px-4 py-2 rounded-full shadow-2xl opacity-0 pointer-events-none transition-all duration-300 z-50">
-        通知メッセージ
+      <div id="my-id-display" class="hidden p-4 bg-slate-700/50 rounded-xl text-center space-y-2">
+        <p class="text-xs text-slate-400">あなたの部屋ID（相手に伝えてください）</p>
+        <p id="peer-id" class="text-2xl font-mono font-bold text-amber-400 select-all"></p>
+        <p id="status-msg" class="text-sm text-amber-300">相手の接続を待っています...</p>
+      </div>
     </div>
 
-    <!-- Firebase Imports -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    <!-- ゲーム画面 -->
+    <div id="game-screen" class="hidden space-y-6">
+      <div id="theme-box" class="p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl text-center">
+        <p class="text-xs text-amber-400 font-bold">今回のお題</p>
+        <p id="theme-text" class="text-xl font-bold mt-1">「ゲーム開始」を押してください</p>
+      </div>
 
-        // Firebase Config Setup
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'ito-game-default';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' 
-            ? JSON.parse(__firebase_config)
-            : { apiKey: "demo", authDomain: "demo.firebaseapp.com", projectId: "demo" };
+      <div class="space-y-2">
+        <p class="text-xs text-slate-400 font-bold">あなたの手札（2枚）</p>
+        <div id="hand-cards" class="grid grid-cols-2 gap-3"></div>
+      </div>
 
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
+      <div class="space-y-2">
+        <p class="text-xs text-slate-400 font-bold">場に出されたカード (最大4枚)</p>
+        <div id="field-cards" class="min-h-[90px] p-3 bg-slate-950/50 rounded-xl flex flex-wrap gap-2 items-center justify-center border border-slate-700">
+          <span class="text-slate-500 text-sm">まだカードは出されていません</span>
+        </div>
+      </div>
 
-        // App States
-        let currentUser = null;
-        let currentRoomCode = null;
-        let isHost = false;
-        let myRole = null; // 'p1' or 'p2'
-        let unsubscribeRoom = null;
-        let roomDataCache = null;
+      <div id="result-box" class="hidden p-4 rounded-xl text-center font-bold text-lg"></div>
 
-        // Theme Pool
-        const themes = [
-            "食べ物の好き嫌い（1:大嫌い 〜 100:大好物）",
-            "ドラえもんのひみつ道具の欲しい順（1:いらない 〜 100:喉から手が出るほど欲しい）",
-            "無人島に持っていきたいもの（1:無意味 〜 100:絶対必要）",
-            "人気のあるテーマパークのアトラクション（1:人気なし 〜 100:大人気）",
-            "強そうなアニメの特技・能力（1:弱そう 〜 100:最強）",
-            "言われて嬉しい言葉（1:普通 〜 100:最高に嬉しい）",
-            "人生で大切なもの（1:どうでもいい 〜 100:一番大切）",
-            "住んでみたい場所（1:絶対住みたくない 〜 100:憧れの場所）",
-            "ゾンビ世界で生き残りそうな行動（1:すぐ死ぬ 〜 100:最後まで生き残る）",
-            "かっこいい職業（1:地味 〜 100:超憧れ）",
-            "好きなおにぎりの具（1:不人気 〜 100:一番好き）"
-        ];
+      <div class="pt-2">
+        <button id="btn-start" class="w-full py-3 bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold rounded-xl transition">
+          新しいテーマでカードを配る
+        </button>
+      </div>
+    </div>
+  </div>
 
-        // UI Elements
-        const lobbyScreen = document.getElementById('lobbyScreen');
-        const gameScreen = document.getElementById('gameScreen');
-        const createRoomBtn = document.getElementById('createRoomBtn');
-        const joinRoomBtn = document.getElementById('joinRoomBtn');
-        const roomCodeInput = document.getElementById('roomCodeInput');
-        const userInfo = document.getElementById('userInfo');
-        const displayRoomCode = document.getElementById('displayRoomCode');
-        const currentTheme = document.getElementById('currentTheme');
-        const randomThemeBtn = document.getElementById('randomThemeBtn');
-        const dealCardsBtn = document.getElementById('dealCardsBtn');
-        const hostControls = document.getElementById('hostControls');
-        const playedCardsArea = document.getElementById('playedCardsArea');
-        const cardBtn1 = document.getElementById('cardBtn1');
-        const cardBtn2 = document.getElementById('cardBtn2');
-        const myCardNum1 = document.getElementById('myCardNum1');
-        const myCardNum2 = document.getElementById('myCardNum2');
-        const p1Status = document.getElementById('p1Status');
-        const p2Status = document.getElementById('p2Status');
-        const resultBanner = document.getElementById('resultBanner');
-        const copyCodeBtn = document.getElementById('copyCodeBtn');
+  <script>
+    const themes = ["食べ物の好き嫌い", "無人島に持っていきたいもの", "強そうな特技・特技", "人気のある動物", "言われて嬉しい言葉", "ゾンビ世界で生き残りそうな行動", "理想のデートスポット"];
+    
+    let peer = null;
+    let conn = null;
+    let myHand = [];
+    let field = [];
+    let isHost = false;
 
-        // Init Auth
-        async function initAuth() {
-            try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-            } catch (err) {
-                console.error("Auth Error:", err);
-                showToast("認証エラーが発生しました");
-            }
+    const setupScreen = document.getElementById('setup-screen');
+    const gameScreen = document.getElementById('game-screen');
+    const btnCreate = document.getElementById('btn-create');
+    const btnJoin = document.getElementById('btn-join');
+    const joinInput = document.getElementById('join-id');
+    const myIdDisplay = document.getElementById('my-id-display');
+    const peerIdText = document.getElementById('peer-id');
+    const statusMsg = document.getElementById('status-msg');
+    const btnStart = document.getElementById('btn-start');
+
+    // 部屋作成（ホスト）
+    btnCreate.addEventListener('click', () => {
+      isHost = true;
+      peer = new Peer();
+      btnCreate.disabled = true;
+      
+      peer.on('open', (id) => {
+        myIdDisplay.classList.remove('hidden');
+        peerIdText.textContent = id;
+      });
+
+      peer.on('connection', (c) => {
+        conn = c;
+        setupConnection();
+      });
+    });
+
+    // 参加（ゲスト）
+    btnJoin.addEventListener('click', () => {
+      const targetId = joinInput.value.trim();
+      if (!targetId) return alert('IDを入力してください');
+      
+      isHost = false;
+      peer = new Peer();
+      
+      peer.on('open', () => {
+        conn = peer.connect(targetId);
+        setupConnection();
+      });
+    });
+
+    // 通信確立後の処理
+    function setupConnection() {
+      conn.on('open', () => {
+        setupScreen.classList.add('hidden');
+        gameScreen.classList.remove('hidden');
+        if (!isHost) btnStart.classList.add('hidden');
+      });
+
+      conn.on('data', (data) => {
+        handleData(data);
+      });
+    }
+
+    // ゲーム開始（ホストのみ）
+    btnStart.addEventListener('click', () => {
+      if (!isHost) return;
+      
+      const theme = themes[Math.floor(Math.random() * themes.length)];
+      
+      // 1〜100から重複なしで4枚選ぶ
+      const nums = [];
+      while(nums.length < 4) {
+        const r = Math.floor(Math.random() * 100) + 1;
+        if(!nums.includes(r)) nums.push(r);
+      }
+
+      const hostHand = [nums[0], nums[1]];
+      const guestHand = [nums[2], nums[3]];
+
+      // 相手に手札とお題を送る
+      conn.send({ type: 'START', theme: theme, hand: guestHand });
+
+      // 自分の手札をセット
+      startNewGame(theme, hostHand);
+    });
+
+    function startNewGame(theme, hand) {
+      myHand = hand;
+      field = [];
+      document.getElementById('theme-text').textContent = theme;
+      document.getElementById('result-box').classList.add('hidden');
+      renderHand();
+      renderField();
+    }
+
+    // 手札描画
+    function renderHand() {
+      const container = document.getElementById('hand-cards');
+      container.innerHTML = '';
+      
+      myHand.forEach((num) => {
+        const btn = document.createElement('button');
+        btn.className = 'py-6 bg-amber-500 hover:bg-amber-400 font-black text-2xl text-slate-900 rounded-xl shadow-lg transition active:scale-95';
+        btn.textContent = num;
+        btn.onclick = () => playCard(num);
+        container.appendChild(btn);
+      });
+    }
+
+    // カードを出す
+    function playCard(num) {
+      myHand = myHand.filter(n => n !== num);
+      field.push(num);
+      renderHand();
+      renderField();
+
+      conn.send({ type: 'PLAY_CARD', num: num });
+      checkResult();
+    }
+
+    // 場描画
+    function renderField() {
+      const container = document.getElementById('field-cards');
+      container.innerHTML = '';
+
+      if (field.length === 0) {
+        container.innerHTML = '<span class="text-slate-500 text-sm">まだカードは出されていません</span>';
+        return;
+      }
+
+      field.forEach((num) => {
+        const div = document.createElement('div');
+        div.className = 'w-14 h-18 py-3 bg-slate-700 text-amber-400 border border-amber-400 font-bold text-xl rounded-lg flex items-center justify-center shadow';
+        div.textContent = num;
+        container.appendChild(div);
+      });
+    }
+
+    // 判定
+    function checkResult() {
+      if (field.length === 4) {
+        const isSuccess = field.every((val, i, arr) => !i || arr[i - 1] <= val);
+        const resultBox = document.getElementById('result-box');
+        resultBox.classList.remove('hidden');
+
+        if (isSuccess) {
+          resultBox.className = 'p-4 rounded-xl text-center font-bold text-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+          resultBox.textContent = '🎉 成功！完全な順番で出せました！';
+        } else {
+          resultBox.className = 'p-4 rounded-xl text-center font-bold text-lg bg-rose-500/20 text-rose-300 border border-rose-500/30';
+          resultBox.textContent = '💥 失敗... 順番が違いました！';
         }
+      }
+    }
 
-        onAuthStateChanged(auth, (user) => {
-            if (user) {
-                currentUser = user;
-                userInfo.textContent = `ID: ${user.uid.substring(0, 6)}...`;
-            }
-        });
-
-        initAuth();
-
-        // Helpers
-        function showToast(msg) {
-            const toast = document.getElementById('toast');
-            toast.textContent = msg;
-            toast.classList.remove('opacity-0', 'pointer-events-none');
-            toast.classList.add('opacity-100');
-            setTimeout(() => {
-                toast.classList.remove('opacity-100');
-                toast.classList.add('opacity-0', 'pointer-events-none');
-            }, 2500);
-        }
-
-        function generateRoomCode() {
-            return Math.floor(10000 + Math.random() * 90000).toString();
-        }
-
-        function getRoomDocRef(code) {
-            return doc(db, 'artifacts', appId, 'public', 'data', 'rooms', code);
-        }
-
-        // Room Creation
-        createRoomBtn.addEventListener('click', async () => {
-            if (!currentUser) return;
-            const roomCode = generateRoomCode();
-            const roomRef = getRoomDocRef(roomCode);
-
-            const initialData = {
-                code: roomCode,
-                hostUid: currentUser.uid,
-                p1Uid: currentUser.uid,
-                p2Uid: null,
-                theme: themes[Math.floor(Math.random() * themes.length)],
-                gameState: 'waiting', // waiting, playing, ended
-                p1Cards: [],
-                p2Cards: [],
-                playedCards: [],
-                createdAt: Date.now()
-            };
-
-            try {
-                await setDoc(roomRef, initialData);
-                isHost = true;
-                myRole = 'p1';
-                joinRoom(roomCode);
-            } catch (e) {
-                console.error(e);
-                showToast("部屋の作成に失敗しました");
-            }
-        });
-
-        // Join Room
-        joinRoomBtn.addEventListener('click', async () => {
-            const code = roomCodeInput.value.trim();
-            if (code.length !== 5) {
-                showToast("5桁の部屋コードを入力してください");
-                return;
-            }
-
-            const roomRef = getRoomDocRef(code);
-            const snap = await getDoc(roomRef);
-
-            if (!snap.exists()) {
-                showToast("部屋が見つかりません");
-                return;
-            }
-
-            const data = snap.data();
-            if (data.p1Uid !== currentUser.uid && data.p2Uid && data.p2Uid !== currentUser.uid) {
-                showToast("部屋が満員です");
-                return;
-            }
-
-            if (data.p1Uid === currentUser.uid) {
-                isHost = true;
-                myRole = 'p1';
-            } else {
-                isHost = false;
-                myRole = 'p2';
-                if (!data.p2Uid) {
-                    await updateDoc(roomRef, { p2Uid: currentUser.uid });
-                }
-            }
-
-            joinRoom(code);
-        });
-
-        // Enter Room Screen & Listen
-        function joinRoom(code) {
-            currentRoomCode = code;
-            lobbyScreen.classList.add('hidden');
-            gameScreen.classList.remove('hidden');
-            displayRoomCode.textContent = code;
-
-            if (isHost) {
-                hostControls.classList.remove('hidden');
-            } else {
-                hostControls.classList.add('hidden');
-            }
-
-            const roomRef = getRoomDocRef(code);
-            if (unsubscribeRoom) unsubscribeRoom();
-
-            unsubscribeRoom = onSnapshot(roomRef, (snapshot) => {
-                if (!snapshot.exists()) return;
-                const data = snapshot.data();
-                renderGame(data);
-            }, (err) => {
-                console.error("Room Listener Error:", err);
-            });
-        }
-
-        // Render Game State
-        function renderGame(data) {
-            roomDataCache = data;
-
-            // Player Connection Status
-            p1Status.innerHTML = `<i class="fa-solid fa-circle text-xs ${data.p1Uid ? 'text-emerald-400' : 'text-slate-600'}"></i> P1 (ホスト)`;
-            p2Status.innerHTML = `<i class="fa-solid fa-circle text-xs ${data.p2Uid ? 'text-emerald-400' : 'text-slate-600'}"></i> P2 ${data.p2Uid === currentUser.uid ? '(あなた)' : ''}`;
-
-            // Theme
-            currentTheme.textContent = data.theme || 'テーマ未設定';
-
-            // My Cards (2 cards per player)
-            const myCards = myRole === 'p1' ? (data.p1Cards || []) : (data.p2Cards || []);
-            const played = data.playedCards || [];
-
-            if (myCards.length === 2 && data.gameState === 'playing') {
-                myCardNum1.textContent = myCards[0];
-                myCardNum2.textContent = myCards[1];
-
-                // Check if already played
-                const played1 = played.some(c => c.player === myRole && c.cardIndex === 0);
-                const played2 = played.some(c => c.player === myRole && c.cardIndex === 1);
-
-                updateCardUI(cardBtn1, played1);
-                updateCardUI(cardBtn2, played2);
-            } else {
-                myCardNum1.textContent = '?';
-                myCardNum2.textContent = '?';
-                setCardDisabled(cardBtn1, true);
-                setCardDisabled(cardBtn2, true);
-            }
-
-            // Played Cards Area
-            if (played.length === 0) {
-                playedCardsArea.innerHTML = `<div class="text-slate-600 text-sm font-bold animate-pulse">カードが出されるのを待っています...</div>`;
-            } else {
-                playedCardsArea.innerHTML = played.map(c => `
-                    <div class="w-16 h-24 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl border-2 border-white/80 shadow-lg flex flex-col justify-between p-2 transform transition-all duration-300">
-                        <div class="text-[9px] font-black text-slate-900 uppercase">${c.player}</div>
-                        <div class="text-2xl font-black text-slate-950 text-center">${c.number}</div>
-                        <div class="text-[9px] font-black text-slate-900 text-right">ito</div>
-                    </div>
-                `).join('');
-            }
-
-            // Result Banner
-            if (data.gameState === 'ended') {
-                resultBanner.classList.remove('hidden', 'bg-emerald-500/20', 'text-emerald-300', 'border-emerald-500/40', 'bg-rose-500/20', 'text-rose-300', 'border-rose-500/40');
-                resultBanner.classList.add('border');
-                if (data.isSuccess) {
-                    resultBanner.classList.add('bg-emerald-500/20', 'text-emerald-300', 'border-emerald-500/40');
-                    resultBanner.innerHTML = `<i class="fa-solid fa-trophy text-yellow-400"></i> クリア！4枚すべて昇順（小さい順）で出せました！ 🎉`;
-                } else {
-                    resultBanner.classList.add('bg-rose-500/20', 'text-rose-300', 'border-rose-500/40');
-                    resultBanner.innerHTML = `<i class="fa-solid fa-skull text-rose-400"></i> 失敗... 小さい順に出せていません！ 💥`;
-                }
-            } else {
-                resultBanner.classList.add('hidden');
-            }
-        }
-
-        function updateCardUI(cardElem, isPlayed) {
-            if (isPlayed) {
-                cardElem.classList.add('opacity-40', 'cursor-not-allowed', 'pointer-events-none');
-                cardElem.classList.remove('hover:scale-105', 'cursor-pointer');
-            } else {
-                cardElem.classList.remove('opacity-40', 'cursor-not-allowed', 'pointer-events-none');
-                cardElem.classList.add('hover:scale-105', 'cursor-pointer');
-            }
-        }
-
-        function setCardDisabled(cardElem, disabled) {
-            if (disabled) {
-                cardElem.classList.add('opacity-40', 'cursor-not-allowed', 'pointer-events-none');
-            } else {
-                cardElem.classList.remove('opacity-40', 'cursor-not-allowed', 'pointer-events-none');
-            }
-        }
-
-        // Host Actions: Deal 2 cards per player (4 unique numbers total)
-        dealCardsBtn.addEventListener('click', async () => {
-            if (!isHost || !currentRoomCode) return;
-
-            const roomRef = getRoomDocRef(currentRoomCode);
-            const snap = await getDoc(roomRef);
-            const data = snap.data();
-
-            if (!data.p2Uid) {
-                showToast("プレイヤー2の参加を待ってください");
-                return;
-            }
-
-            // Pick 4 unique numbers (1~100)
-            const numbers = new Set();
-            while (numbers.size < 4) {
-                numbers.add(Math.floor(Math.random() * 100) + 1);
-            }
-            const numArray = Array.from(numbers);
-
-            await updateDoc(roomRef, {
-                p1Cards: [numArray[0], numArray[1]],
-                p2Cards: [numArray[2], numArray[3]],
-                playedCards: [],
-                gameState: 'playing',
-                isSuccess: null
-            });
-            showToast("手札2枚ずつを配布しました！");
-        });
-
-        // Click Card to Play Action
-        async function playCard(cardIndex) {
-            if (!currentRoomCode || !myRole || !roomDataCache) return;
-            if (roomDataCache.gameState !== 'playing') return;
-
-            const myCards = myRole === 'p1' ? roomDataCache.p1Cards : roomDataCache.p2Cards;
-            const numToPlay = myCards[cardIndex];
-
-            const currentPlayed = roomDataCache.playedCards || [];
-            
-            // Prevent playing same card twice
-            if (currentPlayed.some(c => c.player === myRole && c.cardIndex === cardIndex)) {
-                return;
-            }
-
-            const newPlayed = [...currentPlayed, {
-                player: myRole,
-                cardIndex: cardIndex,
-                number: numToPlay
-            }];
-
-            let newState = roomDataCache.gameState;
-            let isSuccess = null;
-
-            // Total 4 cards to play
-            if (newPlayed.length === 4) {
-                newState = 'ended';
-                // Check if numbers are strictly non-decreasing
-                isSuccess = true;
-                for (let i = 0; i < newPlayed.length - 1; i++) {
-                    if (newPlayed[i].number > newPlayed[i + 1].number) {
-                        isSuccess = false;
-                        break;
-                    }
-                }
-            }
-
-            const roomRef = getRoomDocRef(currentRoomCode);
-            await updateDoc(roomRef, {
-                playedCards: newPlayed,
-                gameState: newState,
-                isSuccess: isSuccess
-            });
-        }
-
-        cardBtn1.addEventListener('click', () => playCard(0));
-        cardBtn2.addEventListener('click', () => playCard(1));
-
-            p1Status.innerHTML = `<i class="fa-solid fa-circle text-xs ${data.p1Uid ? 'text-emerald-400' : 'text-slate-600'}"></i> P1 (ホスト)`;
-            p2Status.innerHTML = `<i class="fa-solid fa-circle text-xs ${data.p2Uid ? 'text-emerald-400' : 'text-slate-600'}"></i> P2 ${data.p2Uid === currentUser.uid ? '(あなた)' : ''}`;
-
-            // Theme
-            currentTheme.textContent = data.theme || 'テーマ未設定';
-
-            // My Card
-            const myCardVal = myRole === 'p1' ? data.p1Card : data.p2Card;
-            if (myCardVal !== null && myCardVal !== undefined) {
-                myCardNumber.textContent = myCardVal;
-                // Check if I already played my card
-                const alreadyPlayed = (data.playedCards || []).some(c => c.player === myRole);
-                playCardBtn.disabled = alreadyPlayed || data.gameState !== 'playing';
-                if (alreadyPlayed) {
-                    playCardBtn.textContent = 'カード提出済み';
-                } else {
-                    playCardBtn.textContent = 'このカードを場に出す！';
-                }
-            } else {
-                myCardNumber.textContent = '?';
-                playCardBtn.disabled = true;
-                playCardBtn.textContent = 'ゲーム開始を待っています';
-            }
-
-            // Played Cards Area
-            const played = data.playedCards || [];
-            if (played.length === 0) {
-                playedCardsArea.innerHTML = `<div class="text-slate-600 text-sm font-bold animate-pulse">カードが出されるのを待っています...</div>`;
-            } else {
-                playedCardsArea.innerHTML = played.map(c => `
-                    <div class="w-16 h-24 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl border-2 border-white/80 shadow-lg flex flex-col justify-between p-2 transform animate-bounce-once">
-                        <div class="text-[10px] font-black text-slate-900 uppercase">${c.player}</div>
-                        <div class="text-3xl font-black text-slate-950 text-center">${c.number}</div>
-                        <div class="text-[10px] font-black text-slate-900 text-right">ito</div>
-                    </div>
-                `).join('');
-            }
-
-            // Result Banner
-            if (data.gameState === 'ended') {
-                resultBanner.classList.remove('hidden', 'bg-emerald-500/20', 'text-emerald-300', 'border-emerald-500/40', 'bg-rose-500/20', 'text-rose-300', 'border-rose-500/40');
-                resultBanner.classList.add('border');
-                if (data.isSuccess) {
-                    resultBanner.classList.add('bg-emerald-500/20', 'text-emerald-300', 'border-emerald-500/40');
-                    resultBanner.innerHTML = `<i class="fa-solid fa-trophy text-yellow-400"></i> クリア！数字が正しい順序で出されました！ 🎉`;
-                } else {
-                    resultBanner.classList.add('bg-rose-500/20', 'text-rose-300', 'border-rose-500/40');
-                    resultBanner.innerHTML = `<i class="fa-solid fa-skull text-rose-400"></i> 失敗... 数字が昇順になっていません！ 💥`;
-                }
-            } else {
-                resultBanner.classList.add('hidden');
-            }
-        }
-
-        // Host Actions
-        randomThemeBtn.addEventListener('click', async () => {
-            if (!isHost || !currentRoomCode) return;
-            const newTheme = themes[Math.floor(Math.random() * themes.length)];
-            await updateDoc(getRoomDocRef(currentRoomCode), { theme: newTheme });
-            showToast("テーマを変更しました");
-        });
-
-        dealCardsBtn.addEventListener('click', async () => {
-            if (!isHost || !currentRoomCode) return;
-
-            const roomRef = getRoomDocRef(currentRoomCode);
-            const snap = await getDoc(roomRef);
-            const data = snap.data();
-
-            if (!data.p2Uid) {
-                showToast("プレイヤー2の参加を待ってください");
-                return;
-            }
-
-            // Deal 2 unique random numbers between 1 and 100
-            const num1 = Math.floor(Math.random() * 100) + 1;
-            let num2 = Math.floor(Math.random() * 100) + 1;
-            while (num1 === num2) {
-                num2 = Math.floor(Math.random() * 100) + 1;
-            }
-
-            await updateDoc(roomRef, {
-                p1Card: num1,
-                p2Card: num2,
-                playedCards: [],
-                gameState: 'playing',
-                isSuccess: null
-            });
-            showToast("カードを配布しました！");
-        });
-
-        // Play Card Action
-        playCardBtn.addEventListener('click', async () => {
-            if (!currentRoomCode || !myRole) return;
-            const roomRef = getRoomDocRef(currentRoomCode);
-            const snap = await getDoc(roomRef);
-            const data = snap.data();
-
-            const myNum = myRole === 'p1' ? data.p1Card : data.p2Card;
-            const currentPlayed = data.playedCards || [];
-
-            const newPlayed = [...currentPlayed, { player: myRole, number: myNum }];
-
-            let newState = data.gameState;
-            let isSuccess = null;
-
-            // Check if both players have played
-            if (newPlayed.length === 2) {
-                newState = 'ended';
-                isSuccess = newPlayed[0].number <= newPlayed[1].number;
-            }
-
-            await updateDoc(roomRef, {
-                playedCards: newPlayed,
-                gameState: newState,
-                isSuccess: isSuccess
-            });
-        });
-
-        // Copy Room Code
-        copyCodeBtn.addEventListener('click', () => {
-            if (!currentRoomCode) return;
-            const dummy = document.createElement('textarea');
-            dummy.value = currentRoomCode;
-            document.body.appendChild(dummy);
-            dummy.select();
-            document.execCommand('copy');
-            document.body.removeChild(dummy);
-            showToast("部屋コードをコピーしました");
-        });
-
-    </script>
+    // 受信処理
+    function handleData(data) {
+      if (data.type === 'START') {
+        startNewGame(data.theme, data.hand);
+      } else if (data.type === 'PLAY_CARD') {
+        field.push(data.num);
+        renderField();
+        checkResult();
+      }
+    }
+  </script>
 </body>
 </html>
