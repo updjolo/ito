@@ -25,15 +25,15 @@
       </div>
 
       <div class="flex gap-2">
-        <input type="text" id="join-id" placeholder="相手のIDを入力" class="flex-1 px-4 py-3 bg-slate-700 rounded-xl border border-slate-600 text-white focus:outline-none focus:border-amber-400">
+        <input type="text" id="join-id" maxlength="5" placeholder="5桁の部屋コード" class="flex-1 px-4 py-3 bg-slate-700 rounded-xl border border-slate-600 text-white font-mono text-center text-lg focus:outline-none focus:border-amber-400">
         <button id="btn-join" class="px-6 py-3 bg-blue-600 hover:bg-blue-700 font-bold rounded-xl transition">
           参加
         </button>
       </div>
 
       <div id="my-id-display" class="hidden p-4 bg-slate-700/50 rounded-xl text-center space-y-2">
-        <p class="text-xs text-slate-400">あなたの部屋ID（相手に伝えてください）</p>
-        <p id="peer-id" class="text-2xl font-mono font-bold text-amber-400 select-all"></p>
+        <p class="text-xs text-slate-400">あなたの部屋コード（相手に教えてください）</p>
+        <p id="peer-id" class="text-4xl font-mono font-black text-amber-400 tracking-wider select-all"></p>
         <p id="status-msg" class="text-sm text-amber-300">相手の接続を待っています...</p>
       </div>
     </div>
@@ -46,12 +46,12 @@
       </div>
 
       <div class="space-y-2">
-        <p class="text-xs text-slate-400 font-bold">あなたの手札（2枚）</p>
+        <p class="text-xs text-slate-400 font-bold">あなたの手札（タップして場に出す）</p>
         <div id="hand-cards" class="grid grid-cols-2 gap-3"></div>
       </div>
 
       <div class="space-y-2">
-        <p class="text-xs text-slate-400 font-bold">場に出されたカード (最大4枚)</p>
+        <p class="text-xs text-slate-400 font-bold">場に出されたカード (裏向きで蓄積・4枚で一斉オープン)</p>
         <div id="field-cards" class="min-h-[90px] p-3 bg-slate-950/50 rounded-xl flex flex-wrap gap-2 items-center justify-center border border-slate-700">
           <span class="text-slate-500 text-sm">まだカードは出されていません</span>
         </div>
@@ -68,13 +68,14 @@
   </div>
 
   <script>
-    const themes = ["食べ物の好き嫌い", "無人島に持っていきたいもの", "強そうな特技・特技", "人気のある動物", "言われて嬉しい言葉", "ゾンビ世界で生き残りそうな行動", "理想のデートスポット"];
+    const themes = ["食べ物の好き嫌い", "無人島に持っていきたいもの", "強そうな特技", "人気のある動物", "言われて嬉しい言葉", "ゾンビ世界で生き残りそうな行動", "理想のデートスポット"];
     
     let peer = null;
     let conn = null;
     let myHand = [];
     let field = [];
     let isHost = false;
+    let isRevealed = false;
 
     const setupScreen = document.getElementById('setup-screen');
     const gameScreen = document.getElementById('game-screen');
@@ -83,18 +84,38 @@
     const joinInput = document.getElementById('join-id');
     const myIdDisplay = document.getElementById('my-id-display');
     const peerIdText = document.getElementById('peer-id');
-    const statusMsg = document.getElementById('status-msg');
     const btnStart = document.getElementById('btn-start');
+
+    // 5桁のランダムな数字IDを生成
+    function generateShortCode() {
+      return Math.floor(10000 + Math.random() * 90000).toString();
+    }
 
     // 部屋作成（ホスト）
     btnCreate.addEventListener('click', () => {
       isHost = true;
-      peer = new Peer();
       btnCreate.disabled = true;
-      
+      btnCreate.textContent = "部屋を作成中...";
+
+      const shortId = "ito-" + generateShortCode();
+      peer = new Peer(shortId);
+
       peer.on('open', (id) => {
+        const displayCode = id.replace('ito-', '');
         myIdDisplay.classList.remove('hidden');
-        peerIdText.textContent = id;
+        peerIdText.textContent = displayCode;
+        btnCreate.textContent = "部屋を作成済み";
+      });
+
+      peer.on('error', (err) => {
+        if (err.type === 'unavailable-id') {
+          // もし奇跡的に5桁IDが重複した場合は再試行
+          btnCreate.click();
+        } else {
+          alert("接続エラー: " + err.type);
+          btnCreate.disabled = false;
+          btnCreate.textContent = "部屋を作成する（ホスト）";
+        }
       });
 
       peer.on('connection', (c) => {
@@ -105,15 +126,25 @@
 
     // 参加（ゲスト）
     btnJoin.addEventListener('click', () => {
-      const targetId = joinInput.value.trim();
-      if (!targetId) return alert('IDを入力してください');
+      const code = joinInput.value.trim();
+      if (!code || code.length !== 5) return alert('5桁の部屋コードを入力してください');
       
       isHost = false;
+      btnJoin.disabled = true;
+      btnJoin.textContent = "接続中...";
+
+      const targetId = "ito-" + code;
       peer = new Peer();
-      
+
       peer.on('open', () => {
         conn = peer.connect(targetId);
         setupConnection();
+      });
+
+      peer.on('error', (err) => {
+        alert("部屋が見つかりません。5桁のコードを確認してください。");
+        btnJoin.disabled = false;
+        btnJoin.textContent = "参加";
       });
     });
 
@@ -136,7 +167,6 @@
       
       const theme = themes[Math.floor(Math.random() * themes.length)];
       
-      // 1〜100から重複なしで4枚選ぶ
       const nums = [];
       while(nums.length < 4) {
         const r = Math.floor(Math.random() * 100) + 1;
@@ -146,16 +176,14 @@
       const hostHand = [nums[0], nums[1]];
       const guestHand = [nums[2], nums[3]];
 
-      // 相手に手札とお題を送る
       conn.send({ type: 'START', theme: theme, hand: guestHand });
-
-      // 自分の手札をセット
       startNewGame(theme, hostHand);
     });
 
     function startNewGame(theme, hand) {
       myHand = hand;
       field = [];
+      isRevealed = false;
       document.getElementById('theme-text').textContent = theme;
       document.getElementById('result-box').classList.add('hidden');
       renderHand();
@@ -176,15 +204,17 @@
       });
     }
 
-    // カードを出す
+    // カードを出す（裏向き）
     function playCard(num) {
+      if (isRevealed) return;
       myHand = myHand.filter(n => n !== num);
-      field.push(num);
+      
+      field.push({ num: num, opened: false });
       renderHand();
       renderField();
 
       conn.send({ type: 'PLAY_CARD', num: num });
-      checkResult();
+      checkAllPlayed();
     }
 
     // 場描画
@@ -197,18 +227,30 @@
         return;
       }
 
-      field.forEach((num) => {
+      field.forEach((card) => {
         const div = document.createElement('div');
-        div.className = 'w-14 h-18 py-3 bg-slate-700 text-amber-400 border border-amber-400 font-bold text-xl rounded-lg flex items-center justify-center shadow';
-        div.textContent = num;
+        if (card.opened) {
+          div.className = 'w-14 h-18 py-3 bg-amber-400 text-slate-900 border border-amber-200 font-bold text-xl rounded-lg flex items-center justify-center shadow animate-bounce';
+          div.textContent = card.num;
+        } else {
+          div.className = 'w-14 h-18 py-3 bg-slate-700 text-slate-400 border border-slate-600 font-bold text-xl rounded-lg flex items-center justify-center shadow';
+          div.textContent = '？';
+        }
         container.appendChild(div);
       });
     }
 
-    // 判定
-    function checkResult() {
-      if (field.length === 4) {
-        const isSuccess = field.every((val, i, arr) => !i || arr[i - 1] <= val);
+    // 4枚揃ったら一斉オープン＆判定
+    function checkAllPlayed() {
+      if (field.length === 4 && !isRevealed) {
+        isRevealed = true;
+        
+        field.forEach(c => c.opened = true);
+        renderField();
+
+        const nums = field.map(c => c.num);
+        const isSuccess = nums.every((val, i, arr) => !i || arr[i - 1] <= val);
+
         const resultBox = document.getElementById('result-box');
         resultBox.classList.remove('hidden');
 
@@ -227,9 +269,9 @@
       if (data.type === 'START') {
         startNewGame(data.theme, data.hand);
       } else if (data.type === 'PLAY_CARD') {
-        field.push(data.num);
+        field.push({ num: data.num, opened: false });
         renderField();
-        checkResult();
+        checkAllPlayed();
       }
     }
   </script>
